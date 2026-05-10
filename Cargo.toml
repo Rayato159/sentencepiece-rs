@@ -6,7 +6,17 @@ license = "Apache-2.0"
 description = "Rust runtime reimplementation of SentencePiece model loading, normalization, encoding, and decoding."
 readme = "README.md"
 documentation = "https://docs.rs/sentencepiece-rs"
+repository = "https://github.com/Rayato159/sentencepiece-rs"
 keywords = ["sentencepiece", "tokenizer", "nlp", "bpe", "unigram"]
 categories = ["text-processing"]
+include = [
+    "src/**/*.rs",
+    "tests/**/*.rs",
+    "Cargo.toml",
+    "Cargo.lock",
+    "README.md",
+    "LICENSE",
+    "CONTRIBUTING.md",
+]
 
 [dependencies]

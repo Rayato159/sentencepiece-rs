@@ -95,6 +95,30 @@ Before opening a PR:
 
 If a check cannot run, say exactly why. Do not bury broken checks in vibes.
 
+## Commit Messages
+
+Use short Conventional Commit-style messages:
+
+```text
+feat: add pure Rust SentencePiece runtime
+fix: handle byte fallback decode edge case
+docs: clarify crates.io publish steps
+test: add Unicode normalization coverage
+ci: add GitHub Actions quality gate
+```
+
+Recommended types:
+
+- `feat` for user-visible features
+- `fix` for bug fixes
+- `docs` for README, license, and contribution docs
+- `test` for test-only changes
+- `ci` for GitHub Actions and automation
+- `refactor` for code cleanup without behavior changes
+- `chore` for maintenance that does not affect runtime behavior
+
+Keep the subject line lowercase after the type, imperative-ish, and under about 72 characters. If the commit needs context, add a body with bullet points.
+
 ## CI
 
 GitHub Actions runs the same quality gate on every push to `main`/`master` and every pull request:
