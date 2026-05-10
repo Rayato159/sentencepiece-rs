@@ -78,6 +78,10 @@ The crate reads standard SentencePiece model protobufs and uses the embedded nor
 
 The big missing chunk is training. Bring your own existing model for now.
 
+## Documentation
+
+[docs.rs/sentencepiece-rs](https://docs.rs/sentencepiece-rs)
+
 ## References
 
 - Original SentencePiece repo: [google/sentencepiece](https://github.com/google/sentencepiece)
