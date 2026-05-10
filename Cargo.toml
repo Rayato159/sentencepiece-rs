@@ -1,0 +1,12 @@
+[package]
+name = "sentencepiece-rs"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+description = "Rust runtime reimplementation of SentencePiece model loading, normalization, encoding, and decoding."
+readme = "README.md"
+documentation = "https://docs.rs/sentencepiece-rs"
+keywords = ["sentencepiece", "tokenizer", "nlp", "bpe", "unigram"]
+categories = ["text-processing"]
+
+[dependencies]
