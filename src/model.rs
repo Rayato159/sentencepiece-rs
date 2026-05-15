@@ -310,14 +310,11 @@ impl SentencePieceModel {
             starts_at: 0,
         });
 
-        for starts_at in normalized
-            .char_indices()
-            .map(|(index, _)| index)
-            .collect::<Vec<_>>()
-        {
-            let Some(best_here) = best_path_ends_at[starts_at].clone() else {
+        for (starts_at, _ch) in normalized.char_indices() {
+            let Some(best_here) = best_path_ends_at[starts_at].as_ref() else {
                 continue;
             };
+            let best_here_score = best_here.best_path_score;
 
             let mblen = char_len_at(normalized, starts_at);
             let mut has_single_node = false;
@@ -325,7 +322,7 @@ impl SentencePieceModel {
             if let Some(first) = suffix.as_bytes().first().copied()
                 && let Some(ids) = self.by_first_byte.get(&first)
             {
-                for id in ids.iter().copied() {
+                for &id in ids {
                     if self.is_unused(id) {
                         continue;
                     }
@@ -336,15 +333,18 @@ impl SentencePieceModel {
 
                     let end = starts_at + piece.len();
                     let score = self.score_for(id, piece.len());
-                    let candidate_score = best_here.best_path_score + score;
-                    update_best(
-                        &mut best_path_ends_at[end],
-                        BestPathNode {
+                    let candidate_score = best_here_score + score;
+                    let target = &mut best_path_ends_at[end];
+                    if target
+                        .as_ref()
+                        .is_none_or(|c| candidate_score > c.best_path_score)
+                    {
+                        *target = Some(BestPathNode {
                             id,
                             best_path_score: candidate_score,
                             starts_at,
-                        },
-                    );
+                        });
+                    }
 
                     if piece.len() == mblen {
                         has_single_node = true;
@@ -354,15 +354,18 @@ impl SentencePieceModel {
 
             if !has_single_node {
                 let end = starts_at + mblen;
-                let candidate_score = best_here.best_path_score + unk_score;
-                update_best(
-                    &mut best_path_ends_at[end],
-                    BestPathNode {
+                let candidate_score = best_here_score + unk_score;
+                let target = &mut best_path_ends_at[end];
+                if target
+                    .as_ref()
+                    .is_none_or(|c| candidate_score > c.best_path_score)
+                {
+                    *target = Some(BestPathNode {
                         id: self.unk_id,
                         best_path_score: candidate_score,
                         starts_at,
-                    },
-                );
+                    });
+                }
             }
         }
 
@@ -382,6 +385,9 @@ impl SentencePieceModel {
         Ok(output)
     }
 
+    /// Optimized BPE encoding:
+    /// - Uses a reusable String for merge key lookups (avoids format!() alloc per pair)
+    /// - Marks dead slots instead of Vec::remove() (avoids O(n) shift per merge)
     fn encode_bpe(&self, normalized: &str) -> Vec<Token> {
         if normalized.is_empty() {
             return Vec::new();
@@ -390,18 +396,27 @@ impl SentencePieceModel {
         let mut symbols = self.split_chars_or_user_symbols(normalized);
         let mut reverse_merge: HashMap<String, (String, String)> = HashMap::new();
 
+        // Reusable string for building merge keys — avoids format!() allocation per pair.
+        let mut merge_key = String::with_capacity(normalized.len());
+
         loop {
             let mut best: Option<(usize, usize, f32)> = None;
             for left in 0..symbols.len().saturating_sub(1) {
-                if symbols[left].piece.is_empty()
-                    || symbols[left + 1].piece.is_empty()
-                    || symbols[left].freeze
-                    || symbols[left + 1].freeze
-                {
+                let sym_l = &symbols[left];
+                if sym_l.piece.is_empty() || sym_l.freeze {
                     continue;
                 }
-                let merged = format!("{}{}", symbols[left].piece, symbols[left + 1].piece);
-                let Some(id) = self.regular_piece_to_id.get(&merged).copied() else {
+                let sym_r = &symbols[left + 1];
+                if sym_r.piece.is_empty() || sym_r.freeze {
+                    continue;
+                }
+
+                // Build merge key in reusable buffer instead of format!().
+                merge_key.clear();
+                merge_key.push_str(&sym_l.piece);
+                merge_key.push_str(&sym_r.piece);
+
+                let Some(id) = self.regular_piece_to_id.get(&merge_key).copied() else {
                     continue;
                 };
                 let score = self.pieces[id].score;
@@ -418,21 +433,27 @@ impl SentencePieceModel {
             };
 
             let right = left + 1;
-            let merged = format!("{}{}", symbols[left].piece, symbols[right].piece);
+
             if self.is_unused(id) {
+                // Rare path: save pre-merge pieces for resegment_bpe to split later.
                 reverse_merge.insert(
-                    merged.clone(),
+                    merge_key.clone(),
                     (symbols[left].piece.clone(), symbols[right].piece.clone()),
                 );
             }
-            symbols[left].piece = merged;
+
+            // Merge: append right piece into left's allocation.
+            let right_piece = symbols[right].piece.clone();
+            symbols[left].piece.push_str(&right_piece);
             symbols[left].freeze = false;
-            symbols.remove(right);
+            symbols[right].piece.clear(); // mark slot as dead
         }
 
         let mut output = Vec::new();
-        for symbol in symbols {
-            self.resegment_bpe(&symbol.piece, &reverse_merge, &mut output);
+        for symbol in &symbols {
+            if !symbol.piece.is_empty() {
+                self.resegment_bpe(&symbol.piece, &reverse_merge, &mut output);
+            }
         }
         output
     }
@@ -534,15 +555,6 @@ fn validate_piece(piece: &ProtoPiece) -> Result<()> {
         return Err(Error::model_parse("piece must not include a null byte"));
     }
     Ok(())
-}
-
-fn update_best(target: &mut Option<BestPathNode>, candidate: BestPathNode) {
-    if target
-        .as_ref()
-        .is_none_or(|current| candidate.best_path_score > current.best_path_score)
-    {
-        *target = Some(candidate);
-    }
 }
 
 fn split_into_words(
