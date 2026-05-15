@@ -97,7 +97,7 @@ The big missing chunk is training. Bring your own existing model for now.
 ## References
 
 - Original SentencePiece repo: [google/sentencepiece](https://github.com/google/sentencepiece)
-- Paper: [arXiv PDF](https://arxiv.org/pdf/2512.12641v1)
+- Paper: [arXiv PDF](https://arxiv.org/pdf/1808.06226)
 
 ## Test Locally
 
